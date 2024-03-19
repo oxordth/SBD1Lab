@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
 from tabulate import tabulate
 
@@ -6,17 +6,16 @@ app = FastAPI()
 
 client = AsyncIOMotorClient("localhost", 27017)
 db = client.collector
+collections = {"users": db.users, "knives": db.knives, "availability": db.availability}
 
-@app.post("/create/")
+@app.post("/{collection}/")
 async def create(collection: str, name: str = Body(None), surname: str = Body(None), city: str = Body(None),
                       manufacturer: str = Body(None), grip: str = Body(None), steel: str = Body(None), form: str = Body(None),
                       id_product: int = Body(None), address: str = Body(None), available: str = Body(None)):
-    if collection == "users":
-        coll = db.users
-    elif collection == "knives":
-        coll = db.knives
-    else:
-        coll = db.availability
+    if collection not in collections:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    coll = collections[collection]
 
     n = await coll.count_documents({})
     document = {"i": n+1}
@@ -43,14 +42,12 @@ async def create(collection: str, name: str = Body(None), surname: str = Body(No
     result = await coll.insert_one(document)
     return {"message": f"Документ с id {n+1} создан"}
 
-@app.get("/read/")
+@app.get("/{collection}/")
 async def read(collection: str, id: int):
-    if collection == "users":
-        coll = db.users
-    elif collection == "knives":
-        coll = db.knives
-    else:
-        coll = db.availability
+    if collection not in collections:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    coll = collections[collection]
 
     result = await coll.find_one({"i": id}, {"_id": 0, "i": 0})
     if result:
@@ -58,17 +55,15 @@ async def read(collection: str, id: int):
     else:
         return {"message": "Документ не существует"}
 
-@app.put("/update/")
+@app.put("/{collection}/")
 async def update(collection: str, id: int, name: str = Body(None), surname: str = Body(None), city: str = Body(None),
                       manufacturer: str = Body(None), grip: str = Body(None), steel: str = Body(None), form: str = Body(None),
                       id_product: str = Body(None), address: str = Body(None), available: str = Body(None)):
     keys = ["Name", "Surname", "City", "Manufacturer", "Grip", "Steel", "Form", "id_product", "address", "available"]
-    if collection == "users":
-        coll = db.users
-    elif collection == "knives":
-        coll = db.knives
-    else:
-        coll = db.availability
+    if collection not in collections:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    coll = collections[collection]
 
     document = {"i": id}
     result = await coll.find_one({"i": {"$lt": id}})
@@ -124,7 +119,7 @@ async def update(collection: str, id: int, name: str = Body(None), surname: str 
     await coll.update_one({"i": id}, {"$set": document})
     return {"message": f"Документ с id {id} обновлён"}
 
-@app.delete("/delete/")
+@app.delete("/{collection}/")
 async def delete(collection: str, id: int):
     if collection == "users":
         coll = db.users
@@ -136,4 +131,4 @@ async def delete(collection: str, id: int):
     n = await coll.count_documents({})
     await coll.delete_one({"i": id})
     new_count = await coll.count_documents({})
-    return {"message": f"Документ с id {id} удалён из {collection}", "before_delete_count": n, "after_delete_count": new_count}
+    return {"message": f"Документ с id {id} удалён из {collection}"}

@@ -1,12 +1,16 @@
+import pymongo
 from fastapi import FastAPI, Body, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
-from tabulate import tabulate
 
 app = FastAPI()
 
 client = AsyncIOMotorClient("localhost", 27017)
 db = client.collector
 collections = {"users": db.users, "knives": db.knives, "availability": db.availability}
+
+db.users.create_index([("City", pymongo.DESCENDING)])
+db.knives.create_index([("Form", pymongo.DESCENDING)])
+db.availability.create_index([("address", pymongo.DESCENDING)])
 
 @app.post("/{collection}/")
 async def create(collection: str, name: str = Body(None), surname: str = Body(None), city: str = Body(None),
